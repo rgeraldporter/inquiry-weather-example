@@ -86,7 +86,7 @@ app.get("/", function (request, response) {
     lang: 'en',
     city: places['Hamilton'], // change this to whichever location you want in Canada
   })
-  //.then(console.log)
+  //.then(console.log) // uncomment this to see what the API returns in the console
   .then(results =>
       Inquiry.subject(results)
         .inquire(forecastAboveZero)
