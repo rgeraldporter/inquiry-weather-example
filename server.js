@@ -1,5 +1,5 @@
 const ecweather = require('ec-weather');
-const {Inquiry, Pass, Fail} = require('inquiry-monad');
+const {Inquiry, Pass, Fail, Questionset} = require('inquiry-monad');
 const R = require('ramda');
 const { Maybe } = require('simple-maybe');
 const express = require('express');
@@ -55,30 +55,43 @@ const findHumidex35Above = a =>
     .map(Number)
     .filter(x => x > 35);
 
-const forecastAboveZero = a =>
-  findZeroBelow(a).length
-    ? Fail('❄️Freezing temperatures are present in forecast')
-    : Pass('😎All forecasts above freezing');
-
-const forecastAbove30 = a =>
-  find30Above(a).length
-    ? Fail('🔥Temperatures above 30°C in the forecast')
-    : Pass('😌No forecasts above 30°C');
-
-const humidexAbove35 = a =>
-  findHumidex35Above(a).length
-    ? Fail('😓Humidex above 35 in the forecast')
-    : Pass('😌No humidex above 35 in the forecast');
-
-const checkWarnings = a =>
-  getWarnings(a).inEffect
-    ? Fail(`⚠️${getWarnings(a).summary}`)
-    : Pass('👍No watches or warnings in effect');
-
-const airQualityBelow5 = a =>
-  Number(getCurrentConditions(a).airQualityHealthIndex) < 5
-    ? Pass('👍Air quality index is below 5, generally fine for most individuals')
-    : Fail('👎Air quality index is 5 or higher, reduce outdoor activity levels if in an at-risk group');
+const weatherQuestionset = Questionset.of([
+  [
+    'are all temperature lows above freezing?',
+    a =>
+      findZeroBelow(a).length
+        ? Fail('❄️Freezing temperatures are present in forecast')
+        : Pass('😎All forecasts above freezing')
+  ],
+  [
+    'are all temperature highs below 30° C?',
+      a =>
+      find30Above(a).length
+        ? Fail('🔥Temperatures above 30°C in the forecast')
+        : Pass('😌No forecasts above 30°C')
+  ],
+  [
+    'are all humidex highs below 35°C?',
+    a =>
+      findHumidex35Above(a).length
+        ? Fail('😓Humidex above 35 in the forecast')
+        : Pass('😌No humidex above 35 in the forecast')
+  ],
+  [
+    'are there warnings in the forecast?',
+    a =>
+      getWarnings(a).inEffect
+        ? Fail(`⚠️${getWarnings(a).summary}`)
+        : Pass('👍No watches or warnings in effect')
+  ],
+  [
+    'is the air quality index below 5?',
+    a =>
+      Number(getCurrentConditions(a).airQualityHealthIndex) < 5
+        ? Pass('👍Air quality index is below 5, generally fine for most individuals')
+        : Fail('👎Air quality index is 5 or higher, reduce outdoor activity levels if in an at-risk group')
+  ]
+]);
 
 app.get("/", function (request, response) {
   
@@ -89,11 +102,8 @@ app.get("/", function (request, response) {
   //.then(console.log) // uncomment this to see what the API returns in the console
   .then(results =>
       Inquiry.subject(results)
-        .inquire(forecastAboveZero)
-        .inquire(forecastAbove30)
-        .inquire(humidexAbove35)
-        .inquire(checkWarnings)
-        .inquire(airQualityBelow5)
+        .using(weatherQuestionset)
+        .inquireAll()
         .join()
   )
   .then(data =>
